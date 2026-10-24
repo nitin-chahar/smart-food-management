@@ -88,7 +88,7 @@ function App() {
   })
 
   const loadSummary = () => {
-    fetch('http://127.0.0.1:5000/api/summary')
+    fetch('https://smartmess-api.onrender.com/api/summary')
       .then((res) => {
         if (!res.ok) throw new Error('Could not load dashboard data')
         return res.json()
@@ -98,7 +98,7 @@ function App() {
   }
 
   const loadMeals = () => {
-    fetch('http://127.0.0.1:5000/api/meals')
+    fetch('https://smartmess-api.onrender.com/api/meals')
       .then((res) => res.json())
       .then((data) => setMeals(data))
       .catch(() => setMessage('Could not load meal history'))
@@ -119,16 +119,19 @@ function App() {
     }
 
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/meals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          meal_type: mealType,
-          food_prepared: Number(foodPrepared),
-          meals_served: Number(mealsServed),
-          food_waste: foodWaste,
-        }),
-      })
+      const response = await fetch(
+        'https://smartmess-api.onrender.com/api/meals',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            meal_type: mealType,
+            food_prepared: Number(foodPrepared),
+            meals_served: Number(mealsServed),
+            food_waste: foodWaste,
+          }),
+        }
+      )
 
       const data = await response.json()
 
