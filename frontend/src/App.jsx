@@ -73,17 +73,6 @@ function App() {
       ? { prepared: '#7cc4cd', consumed: '#3f8f9a', waste: '#ff8a7a' }
       : { prepared: '#2b5f66', consumed: '#8cc5cc', waste: '#d65a4a' }
 
-  // Calculated fields (shown read-only in the form)
-  const isWeekend = dayOfWeek === 'Saturday' || dayOfWeek === 'Sunday' ? 1 : 0
-
-  const foodWaste = Math.max(
-    0,
-    Number(foodPrepared || 0) - Number(foodConsumed || 0)
-  )
-
-  const wastePercent =
-    Number(foodPrepared) > 0 ? (foodWaste / Number(foodPrepared)) * 100 : 0
-
   // Past menus, offered as suggestions so spelling stays consistent
   const menuOptions = [...new Set(meals.map((m) => m.menu).filter(Boolean))]
 
@@ -402,33 +391,6 @@ function App() {
                 required
                 value={foodConsumed}
                 onChange={(e) => setFoodConsumed(e.target.value)}
-              />
-            </label>
-
-            <label>
-              Food Wasted (kg)
-              <input
-                type="number"
-                value={foodWaste.toFixed(2)}
-                readOnly
-              />
-            </label>
-
-            <label>
-              Waste (%)
-              <input
-                type="text"
-                value={wastePercent.toFixed(2)}
-                readOnly
-              />
-            </label>
-
-            <label>
-              Weekend (auto)
-              <input
-                type="text"
-                value={isWeekend ? 'Yes (1)' : 'No (0)'}
-                readOnly
               />
             </label>
 
