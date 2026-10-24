@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Poppins:wght@400;500;600&display=swap');
+
+:root {
+  color-scheme: light;
+
+  --ink: #111111;
+  --muted: #6b7280;
+  --paper: #ffffff;
+  --tile: #f1f1f2;
+  --line: #e6e6e8;
+  --aqua: #cfe9ee;
+  --aqua-deep: #2b5f66;
+
+  --hero-visual: #8fcad3;
+  --hero-text: #3f5558;
+  --plate: #ffffff;
+  --plate-core: #2b5f66;
+  --field: #ffffff;
+  --field-readonly: #e7e7e9;
+  --row-hover: #f8f8f9;
+  --btn-bg: #111111;
+  --btn-text: #ffffff;
+  --btn-hover: #2a2a2a;
+  --ok: #1f7a4d;
+  --err: #b42318;
+  --shadow: rgba(17, 17, 17, 0.14);
+
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-body: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ink: #ececee;
+  --muted: #9ba1a8;
+  --paper: #111315;
+  --tile: #1b1e21;
+  --line: #2b3035;
+  --aqua: #14343a;
+  --aqua-deep: #7cc4cd;
+
+  --hero-visual: #1f4a52;
+  --hero-text: #a9c4c8;
+  --plate: #f4f4f5;
+  --plate-core: #2b5f66;
+  --field: #111315;
+  --field-readonly: #24282c;
+  --row-hover: #181b1e;
+  --btn-bg: #ececee;
+  --btn-text: #111315;
+  --btn-hover: #ffffff;
+  --ok: #5fd197;
+  --err: #ff8a7a;
+  --shadow: rgba(0, 0, 0, 0.55);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.25s ease, color 0.25s ease;
+}
