@@ -11,11 +11,35 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
+const DAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+]
+
+// Deployed backend (Render)
+const API_URL = 'https://smartmess-api.onrender.com'
+
+// Shows "—" for old records that don't have the new fields
+const fmt = (n) =>
+  n === undefined || n === null
+    ? '—'
+    : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })
+
 function App() {
   const [summary, setSummary] = useState(null)
+  const [dayOfWeek, setDayOfWeek] = useState(
+    new Date().toLocaleDateString('en-US', { weekday: 'long' })
+  )
   const [mealType, setMealType] = useState('Lunch')
+  const [menu, setMenu] = useState('')
+  const [studentsServed, setStudentsServed] = useState('')
   const [foodPrepared, setFoodPrepared] = useState('')
-  const [mealsServed, setMealsServed] = useState('')
+  const [foodConsumed, setFoodConsumed] = useState('')
   const [message, setMessage] = useState('')
   const [meals, setMeals] = useState([])
 
@@ -46,31 +70,40 @@ function App() {
 
   const chartColors =
     theme === 'dark'
-      ? { prepared: '#7cc4cd', served: '#3f8f9a', waste: '#ff8a7a' }
-      : { prepared: '#2b5f66', served: '#8cc5cc', waste: '#d65a4a' }
+      ? { prepared: '#7cc4cd', consumed: '#3f8f9a', waste: '#ff8a7a' }
+      : { prepared: '#2b5f66', consumed: '#8cc5cc', waste: '#d65a4a' }
+
+  // Calculated fields (shown read-only in the form)
+  const isWeekend = dayOfWeek === 'Saturday' || dayOfWeek === 'Sunday' ? 1 : 0
 
   const foodWaste = Math.max(
     0,
-    Number(foodPrepared || 0) - Number(mealsServed || 0)
+    Number(foodPrepared || 0) - Number(foodConsumed || 0)
   )
+
+  const wastePercent =
+    Number(foodPrepared) > 0 ? (foodWaste / Number(foodPrepared)) * 100 : 0
+
+  // Past menus, offered as suggestions so spelling stays consistent
+  const menuOptions = [...new Set(meals.map((m) => m.menu).filter(Boolean))]
 
   const chartData = [
     {
       name: 'Breakfast',
       Prepared: 0,
-      Served: 0,
+      Consumed: 0,
       Waste: 0,
     },
     {
       name: 'Lunch',
       Prepared: 0,
-      Served: 0,
+      Consumed: 0,
       Waste: 0,
     },
     {
       name: 'Dinner',
       Prepared: 0,
-      Served: 0,
+      Consumed: 0,
       Waste: 0,
     },
   ]
@@ -81,14 +114,14 @@ function App() {
     )
 
     if (item) {
-      item.Prepared += meal.food_prepared
-      item.Served += meal.meals_served
-      item.Waste += meal.food_waste
+      item.Prepared += meal.food_prepared_kg || 0
+      item.Consumed += meal.food_consumed_kg || 0
+      item.Waste += meal.food_wasted_kg || 0
     }
   })
 
   const loadSummary = () => {
-    fetch('https://smartmess-api.onrender.com/api/summary')
+    fetch(`${API_URL}/api/summary`)
       .then((res) => {
         if (!res.ok) throw new Error('Could not load dashboard data')
         return res.json()
@@ -98,7 +131,7 @@ function App() {
   }
 
   const loadMeals = () => {
-    fetch('https://smartmess-api.onrender.com/api/meals')
+    fetch(`${API_URL}/api/meals`)
       .then((res) => res.json())
       .then((data) => setMeals(data))
       .catch(() => setMessage('Could not load meal history'))
@@ -113,25 +146,24 @@ function App() {
     e.preventDefault()
     setMessage('')
 
-    if (Number(mealsServed) > Number(foodPrepared)) {
-      setMessage('Meals served cannot exceed food prepared.')
+    if (Number(foodConsumed) > Number(foodPrepared)) {
+      setMessage('Food consumed cannot exceed food prepared.')
       return
     }
 
     try {
-      const response = await fetch(
-        'https://smartmess-api.onrender.com/api/meals',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            meal_type: mealType,
-            food_prepared: Number(foodPrepared),
-            meals_served: Number(mealsServed),
-            food_waste: foodWaste,
-          }),
-        }
-      )
+      const response = await fetch(`${API_URL}/api/meals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          day_of_week: dayOfWeek,
+          meal_type: mealType,
+          menu: menu.trim(),
+          students_served: Number(studentsServed),
+          food_prepared_kg: Number(foodPrepared),
+          food_consumed_kg: Number(foodConsumed),
+        }),
+      })
 
       const data = await response.json()
 
@@ -140,8 +172,10 @@ function App() {
       }
 
       setMessage('Meal saved successfully!')
+      setMenu('')
+      setStudentsServed('')
       setFoodPrepared('')
-      setMealsServed('')
+      setFoodConsumed('')
       loadSummary()
       loadMeals()
     } catch (error) {
@@ -237,8 +271,8 @@ function App() {
               With Purpose
             </h1>
             <p className="hero-text">
-              Live data from your database. Track what you prepare, what you
-              serve, and what goes to waste.
+              Live data from your database. Track what you prepare, what
+              students consume, and what goes to waste.
             </p>
             <a href="#add-meal" className="btn">
               Add Meal Record
@@ -248,8 +282,8 @@ function App() {
           <div className="hero-visual">
             <div className="plate">
               <div className="plate-inner">
-                <span>Food Waste</span>
-                <strong>{summary ? summary.food_waste : '—'}</strong>
+                <span>Food Waste (kg)</span>
+                <strong>{summary ? fmt(summary.food_wasted_kg) : '—'}</strong>
               </div>
             </div>
           </div>
@@ -263,27 +297,27 @@ function App() {
             <div className="stats">
               <article className="card">
                 <div className="card-tile">
-                  <h3>{summary.expected_students}</h3>
+                  <h3>{fmt(summary.expected_students)}</h3>
                 </div>
                 <p>Expected Students</p>
               </article>
               <article className="card">
                 <div className="card-tile">
-                  <h3>{summary.meals_served}</h3>
+                  <h3>{fmt(summary.students_served)}</h3>
                 </div>
-                <p>Meals Served</p>
+                <p>Students Served</p>
               </article>
               <article className="card">
                 <div className="card-tile">
-                  <h3>{summary.food_prepared}</h3>
+                  <h3>{fmt(summary.food_prepared_kg)}</h3>
                 </div>
-                <p>Food Prepared</p>
+                <p>Food Prepared (kg)</p>
               </article>
               <article className="card">
                 <div className="card-tile">
-                  <h3>{summary.food_waste}</h3>
+                  <h3>{fmt(summary.food_wasted_kg)}</h3>
                 </div>
-                <p>Food Waste</p>
+                <p>Food Wasted (kg)</p>
               </article>
             </div>
           )}
@@ -294,6 +328,18 @@ function App() {
           <h2 className="section-title">Add Meal Record</h2>
 
           <form className="form" onSubmit={saveMeal}>
+            <label>
+              Day of Week
+              <select
+                value={dayOfWeek}
+                onChange={(e) => setDayOfWeek(e.target.value)}
+              >
+                {DAYS.map((day) => (
+                  <option key={day}>{day}</option>
+                ))}
+              </select>
+            </label>
+
             <label>
               Meal Type
               <select
@@ -306,11 +352,41 @@ function App() {
               </select>
             </label>
 
+            <label className="field-wide">
+              Menu
+              <input
+                type="text"
+                required
+                list="menu-options"
+                placeholder="e.g. Idli"
+                value={menu}
+                onChange={(e) => setMenu(e.target.value)}
+              />
+              <datalist id="menu-options">
+                {menuOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </label>
+
             <label>
-              Food Prepared (portions)
+              Students Served
               <input
                 type="number"
                 min="0"
+                step="1"
+                required
+                value={studentsServed}
+                onChange={(e) => setStudentsServed(e.target.value)}
+              />
+            </label>
+
+            <label>
+              Food Prepared (kg)
+              <input
+                type="number"
+                min="0"
+                step="any"
                 required
                 value={foodPrepared}
                 onChange={(e) => setFoodPrepared(e.target.value)}
@@ -318,21 +394,40 @@ function App() {
             </label>
 
             <label>
-              Meals Served (portions)
+              Food Consumed (kg)
               <input
                 type="number"
                 min="0"
+                step="any"
                 required
-                value={mealsServed}
-                onChange={(e) => setMealsServed(e.target.value)}
+                value={foodConsumed}
+                onChange={(e) => setFoodConsumed(e.target.value)}
               />
             </label>
 
             <label>
-              Food Waste (portions)
+              Food Wasted (kg)
               <input
                 type="number"
-                value={foodWaste}
+                value={foodWaste.toFixed(2)}
+                readOnly
+              />
+            </label>
+
+            <label>
+              Waste (%)
+              <input
+                type="text"
+                value={wastePercent.toFixed(2)}
+                readOnly
+              />
+            </label>
+
+            <label>
+              Weekend (auto)
+              <input
+                type="text"
+                value={isWeekend ? 'Yes (1)' : 'No (0)'}
                 readOnly
               />
             </label>
@@ -359,7 +454,7 @@ function App() {
         <section className="section" id="analytics">
           <h2 className="section-title">Food Waste Analytics</h2>
           <p className="section-sub">
-            Compare prepared food, meals served, and food waste.
+            Compare food prepared, food consumed, and food waste (kg).
           </p>
 
           <div className="chart-box" style={{ width: '100%', height: 320 }}>
@@ -379,7 +474,7 @@ function App() {
                 />
                 <Legend />
                 <Bar dataKey="Prepared" fill={chartColors.prepared} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Served" fill={chartColors.served} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Consumed" fill={chartColors.consumed} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Waste" fill={chartColors.waste} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -394,11 +489,15 @@ function App() {
             <table>
               <thead>
                 <tr>
+                  <th>Day</th>
                   <th>Meal Type</th>
-                  <th>Prepared</th>
-                  <th>Served</th>
-                  <th>Waste</th>
-                  <th>Date</th>
+                  <th>Menu</th>
+                  <th>Students</th>
+                  <th>Prepared (kg)</th>
+                  <th>Consumed (kg)</th>
+                  <th>Waste (kg)</th>
+                  <th>Waste %</th>
+                  <th>Saved On</th>
                 </tr>
               </thead>
 
@@ -406,10 +505,14 @@ function App() {
                 {meals.length > 0 ? (
                   meals.map((meal) => (
                     <tr key={meal._id}>
+                      <td>{meal.day_of_week ?? '—'}</td>
                       <td>{meal.meal_type}</td>
-                      <td>{meal.food_prepared}</td>
-                      <td>{meal.meals_served}</td>
-                      <td>{meal.food_waste}</td>
+                      <td>{meal.menu ?? '—'}</td>
+                      <td>{fmt(meal.students_served)}</td>
+                      <td>{fmt(meal.food_prepared_kg)}</td>
+                      <td>{fmt(meal.food_consumed_kg)}</td>
+                      <td>{fmt(meal.food_wasted_kg)}</td>
+                      <td>{fmt(meal.waste_percent)}</td>
                       <td>
                         {meal.created_at
                           ? new Date(meal.created_at).toLocaleString()
@@ -419,7 +522,7 @@ function App() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5">No meal records found.</td>
+                    <td colSpan="9">No meal records found.</td>
                   </tr>
                 )}
               </tbody>

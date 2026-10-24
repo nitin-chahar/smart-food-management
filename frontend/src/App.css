@@ -489,3 +489,8 @@ tbody tr:hover {
     transform: none !important;
   }
 }
+
+/* ===== Form: full-width field (Menu) ===== */
+.form .field-wide {
+  grid-column: 1 / -1;
+}
