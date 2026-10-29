@@ -3,3 +3,6 @@ flask-cors
 pymongo
 python-dotenv
 gunicorn
+scikit-learn==1.7.2
+pandas
+joblib==1.4.2

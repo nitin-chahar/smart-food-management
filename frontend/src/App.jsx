@@ -43,6 +43,20 @@ function App() {
   const [message, setMessage] = useState('')
   const [meals, setMeals] = useState([])
 
+  // Which tool is shown: 'predict' (default) or 'record'
+  const [mode, setMode] = useState('predict')
+
+  // Prediction panel
+  const [predDay, setPredDay] = useState(
+    new Date().toLocaleDateString('en-US', { weekday: 'long' })
+  )
+  const [predMeal, setPredMeal] = useState('Lunch')
+  const [predMenu, setPredMenu] = useState('')
+  const [menus, setMenus] = useState([])
+  const [prediction, setPrediction] = useState(null)
+  const [predictError, setPredictError] = useState('')
+  const [predicting, setPredicting] = useState(false)
+
   // Light / dark theme (UI only, remembered in the browser)
   const [theme, setTheme] = useState(() => {
     try {
@@ -172,6 +186,49 @@ function App() {
     }
   }
 
+  // Menus the model knows (for the prediction dropdown)
+  useEffect(() => {
+    fetch(`${API_URL}/api/menus`)
+      .then((res) => res.json())
+      .then((data) => {
+        const list = data.menus || []
+        setMenus(list)
+        if (list.length > 0) setPredMenu(list[0])
+      })
+      .catch(() => {})
+  }, [])
+
+  const predictFood = async (e) => {
+    e.preventDefault()
+    setPrediction(null)
+    setPredictError('')
+    setPredicting(true)
+
+    try {
+      const response = await fetch(`${API_URL}/api/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          day_of_week: predDay,
+          meal_type: predMeal,
+          menu: predMenu.trim(),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not get a prediction')
+      }
+
+      setPrediction(data)
+    } catch (error) {
+      setPredictError(error.message || 'Could not connect to backend')
+    } finally {
+      setPredicting(false)
+    }
+  }
+
   // Presentation only: picks the message colour
   const messageIsSuccess = message === 'Meal saved successfully!'
 
@@ -181,7 +238,12 @@ function App() {
       <nav className="nav">
         <div className="nav-links">
           <a href="#overview">Overview</a>
-          <a href="#add-meal">Add Meal</a>
+          <a href="#meal-tools" onClick={() => setMode('predict')}>
+            Predict
+          </a>
+          <a href="#meal-tools" onClick={() => setMode('record')}>
+            Add Meal
+          </a>
           <a href="#analytics">Analytics</a>
           <a href="#history">History</a>
         </div>
@@ -263,7 +325,11 @@ function App() {
               Live data from your database. Track what you prepare, what
               students consume, and what goes to waste.
             </p>
-            <a href="#add-meal" className="btn">
+            <a
+              href="#meal-tools"
+              className="btn"
+              onClick={() => setMode('record')}
+            >
               Add Meal Record
             </a>
           </div>
@@ -312,10 +378,113 @@ function App() {
           )}
         </section>
 
-        {/* ---------- Add meal ---------- */}
-        <section className="section" id="add-meal">
-          <h2 className="section-title">Add Meal Record</h2>
+        {/* ---------- Prediction ---------- */}
+        <section className="section" id="meal-tools">
+          <h2 className="section-title">
+            {mode === 'predict' ? 'Recommended Food to Prepare' : 'Add Meal Record'}
+          </h2>
+          <p className="section-sub">
+            {mode === 'predict'
+              ? 'Pick a day, meal and menu to see how much food to cook.'
+              : 'Save what was prepared and consumed to keep your data up to date.'}
+          </p>
 
+          <div className="mode-switch" role="tablist" aria-label="Choose an action">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'predict'}
+              className={mode === 'predict' ? 'mode-btn active' : 'mode-btn'}
+              onClick={() => setMode('predict')}
+            >
+              Predict Food
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'record'}
+              className={mode === 'record' ? 'mode-btn active' : 'mode-btn'}
+              onClick={() => setMode('record')}
+            >
+              Add Meal Record
+            </button>
+          </div>
+
+          {mode === 'predict' && (
+          <>
+          <form className="form" onSubmit={predictFood}>
+            <label>
+              Day of Week
+              <select
+                value={predDay}
+                onChange={(e) => setPredDay(e.target.value)}
+              >
+                {DAYS.map((day) => (
+                  <option key={day}>{day}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Meal Type
+              <select
+                value={predMeal}
+                onChange={(e) => setPredMeal(e.target.value)}
+              >
+                <option>Breakfast</option>
+                <option>Lunch</option>
+                <option>Dinner</option>
+              </select>
+            </label>
+
+            <label className="field-wide">
+              Menu
+              {menus.length > 0 ? (
+                <select
+                  value={predMenu}
+                  onChange={(e) => setPredMenu(e.target.value)}
+                >
+                  {menus.map((name) => (
+                    <option key={name}>{name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Idli"
+                  value={predMenu}
+                  onChange={(e) => setPredMenu(e.target.value)}
+                />
+              )}
+            </label>
+
+            <div className="form-actions">
+              <button type="submit" className="btn" disabled={predicting}>
+                {predicting ? 'Predicting…' : 'Predict'}
+              </button>
+              {predictError && (
+                <p className="message message-error" role="status">
+                  {predictError}
+                </p>
+              )}
+            </div>
+          </form>
+
+          {prediction && (
+            <div className="prediction" role="status">
+              <p>Recommended to prepare</p>
+              <h3>{fmt(prediction.predicted_kg)} kg</h3>
+              <span>
+                {prediction.day_of_week} · {prediction.meal_type} ·{' '}
+                {prediction.menu}
+              </span>
+            </div>
+          )}
+          </>
+          )}
+
+          {mode === 'record' && (
           <form className="form" onSubmit={saveMeal}>
             <label>
               Day of Week
@@ -410,6 +579,7 @@ function App() {
               )}
             </div>
           </form>
+          )}
         </section>
 
         {/* ---------- Analytics ---------- */}
