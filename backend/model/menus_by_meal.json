@@ -1,0 +1,38 @@
+{
+  "Breakfast": [
+    "Aloo paratha, curd, pickle",
+    "Besan chilla, chutney",
+    "Bread omelette, fruit",
+    "Chole kulche, curd",
+    "Dalia, milk, banana",
+    "Idli, sambar, coconut chutney",
+    "Paratha, butter, tea",
+    "Poha, tea, banana",
+    "Puri, aloo sabzi, tea",
+    "Vegetable upma, tea"
+  ],
+  "Lunch": [
+    "Aloo matar, dal, roti, rice",
+    "Chole, rice, roti, salad",
+    "Dal, jeera rice, roti, seasonal sabzi",
+    "Kadhi pakora, rice, roti",
+    "Kadhi, rice, roti, salad",
+    "Mixed veg, dal, rice, roti",
+    "Paneer curry, rice, roti, salad",
+    "Rajma, rice, roti, salad",
+    "Seasonal veg, chana dal, roti, rice",
+    "Veg pulao, raita, salad"
+  ],
+  "Dinner": [
+    "Aloo gobi, dal, roti, rice",
+    "Bhindi masala, dal, roti, rice",
+    "Chana masala, rice, roti",
+    "Dal makhani, roti, rice, salad",
+    "Kofta curry, roti, rice, salad",
+    "Matar paneer, roti, rice, salad",
+    "Mix veg, rajma, rice, roti",
+    "Paneer bhurji, roti, rice, salad",
+    "Seasonal sabzi, dal, roti, rice",
+    "Vegetable khichdi, curd, pickle"
+  ]
+}

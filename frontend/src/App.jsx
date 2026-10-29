@@ -53,6 +53,15 @@ function App() {
   const [predMeal, setPredMeal] = useState('Lunch')
   const [predMenu, setPredMenu] = useState('')
   const [menus, setMenus] = useState([])
+  const [menusByMeal, setMenusByMeal] = useState({})
+
+  // Enrollment setting (saved on the server until changed)
+  const [settings, setSettings] = useState({
+    enrolled_students: null,
+    training_students: null,
+  })
+  const [enrolledInput, setEnrolledInput] = useState('')
+  const [enrollMessage, setEnrollMessage] = useState('')
   const [prediction, setPrediction] = useState(null)
   const [predictError, setPredictError] = useState('')
   const [predicting, setPredicting] = useState(false)
@@ -89,6 +98,10 @@ function App() {
 
   // Past menus, offered as suggestions so spelling stays consistent
   const menuOptions = [...new Set(meals.map((m) => m.menu).filter(Boolean))]
+
+  // Menus served at the selected meal (falls back to the full list)
+  const recordMenus = menusByMeal[mealType] || menus
+  const predictMenus = menusByMeal[predMeal] || menus
 
   const chartData = [
     {
@@ -175,7 +188,6 @@ function App() {
       }
 
       setMessage('Meal saved successfully!')
-      setMenu('')
       setStudentsServed('')
       setFoodPrepared('')
       setFoodConsumed('')
@@ -186,17 +198,77 @@ function App() {
     }
   }
 
-  // Menus the model knows (for the prediction dropdown)
+  // Menus the model knows, grouped by meal (both forms use the same names)
   useEffect(() => {
     fetch(`${API_URL}/api/menus`)
       .then((res) => res.json())
       .then((data) => {
-        const list = data.menus || []
-        setMenus(list)
-        if (list.length > 0) setPredMenu(list[0])
+        const flat = data.menus || []
+        const byMeal = data.by_meal || {}
+        setMenus(flat)
+        setMenusByMeal(byMeal)
+        // Both forms start on Lunch
+        const first = (byMeal.Lunch || flat)[0] || ''
+        setPredMenu(first)
+        setMenu(first)
       })
       .catch(() => {})
   }, [])
+
+  const changeRecordMeal = (value) => {
+    setMealType(value)
+    const options = menusByMeal[value] || menus
+    if (options.length > 0) setMenu(options[0])
+  }
+
+  const changePredictMeal = (value) => {
+    setPredMeal(value)
+    setPrediction(null)
+    const options = menusByMeal[value] || menus
+    if (options.length > 0) setPredMenu(options[0])
+  }
+
+  // Enrolled students (kept on the server until you change it)
+  const loadSettings = () => {
+    fetch(`${API_URL}/api/settings`)
+      .then((res) => res.json())
+      .then((data) => {
+        setSettings(data)
+        setEnrolledInput(String(data.enrolled_students))
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const saveEnrollment = async (e) => {
+    e.preventDefault()
+    setEnrollMessage('')
+
+    try {
+      const response = await fetch(`${API_URL}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrolled_students: Number(enrolledInput) }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not update enrollment')
+      }
+
+      setSettings(data)
+      setEnrolledInput(String(data.enrolled_students))
+      setPrediction(null)
+      setEnrollMessage('Enrollment updated.')
+      loadSummary()
+    } catch (error) {
+      setEnrollMessage(error.message || 'Could not connect to backend')
+    }
+  }
 
   const predictFood = async (e) => {
     e.preventDefault()
@@ -230,6 +302,7 @@ function App() {
   }
 
   // Presentation only: picks the message colour
+  const enrollOk = enrollMessage === 'Enrollment updated.'
   const messageIsSuccess = message === 'Meal saved successfully!'
 
   return (
@@ -376,6 +449,35 @@ function App() {
               </article>
             </div>
           )}
+
+          <form className="enroll" onSubmit={saveEnrollment}>
+            <label>
+              Enrolled students
+              <input
+                type="number"
+                min="1"
+                step="1"
+                required
+                value={enrolledInput}
+                onChange={(e) => setEnrolledInput(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="btn">
+              Update
+            </button>
+            {enrollMessage && (
+              <p
+                className={enrollOk ? 'message message-ok' : 'message message-error'}
+                role="status"
+              >
+                {enrollMessage}
+              </p>
+            )}
+            <p className="enroll-note">
+              Saved until you change it. Predictions are scaled from the
+              model&apos;s baseline of {fmt(settings.training_students)} students.
+            </p>
+          </form>
         </section>
 
         {/* ---------- Prediction ---------- */}
@@ -429,7 +531,7 @@ function App() {
               Meal Type
               <select
                 value={predMeal}
-                onChange={(e) => setPredMeal(e.target.value)}
+                onChange={(e) => changePredictMeal(e.target.value)}
               >
                 <option>Breakfast</option>
                 <option>Lunch</option>
@@ -439,12 +541,12 @@ function App() {
 
             <label className="field-wide">
               Menu
-              {menus.length > 0 ? (
+              {predictMenus.length > 0 ? (
                 <select
                   value={predMenu}
                   onChange={(e) => setPredMenu(e.target.value)}
                 >
-                  {menus.map((name) => (
+                  {predictMenus.map((name) => (
                     <option key={name}>{name}</option>
                   ))}
                 </select>
@@ -479,6 +581,13 @@ function App() {
                 {prediction.day_of_week} · {prediction.meal_type} ·{' '}
                 {prediction.menu}
               </span>
+              {prediction.scale_factor !== 1 && (
+                <p className="prediction-note">
+                  Model estimate {fmt(prediction.model_kg)} kg, adjusted for{' '}
+                  {fmt(prediction.enrolled_students)} enrolled students (model
+                  baseline: {fmt(prediction.training_students)}).
+                </p>
+              )}
             </div>
           )}
           </>
@@ -502,7 +611,7 @@ function App() {
               Meal Type
               <select
                 value={mealType}
-                onChange={(e) => setMealType(e.target.value)}
+                onChange={(e) => changeRecordMeal(e.target.value)}
               >
                 <option>Breakfast</option>
                 <option>Lunch</option>
@@ -512,19 +621,33 @@ function App() {
 
             <label className="field-wide">
               Menu
-              <input
-                type="text"
-                required
-                list="menu-options"
-                placeholder="e.g. Idli"
-                value={menu}
-                onChange={(e) => setMenu(e.target.value)}
-              />
-              <datalist id="menu-options">
-                {menuOptions.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
+              {recordMenus.length > 0 ? (
+                <select
+                  required
+                  value={menu}
+                  onChange={(e) => setMenu(e.target.value)}
+                >
+                  {recordMenus.map((name) => (
+                    <option key={name}>{name}</option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    required
+                    list="menu-options"
+                    placeholder="e.g. Idli, sambar, coconut chutney"
+                    value={menu}
+                    onChange={(e) => setMenu(e.target.value)}
+                  />
+                  <datalist id="menu-options">
+                    {menuOptions.map((option) => (
+                      <option key={option} value={option} />
+                    ))}
+                  </datalist>
+                </>
+              )}
             </label>
 
             <label>

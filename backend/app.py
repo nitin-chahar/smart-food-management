@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+import json
 import os
 import joblib
 import pandas as pd
@@ -63,7 +64,57 @@ def get_known_menus(pipeline):
 
 model = load_model()
 KNOWN_MENUS = get_known_menus(model)
-MENU_LOOKUP = {name.lower(): name for name in KNOWN_MENUS}
+
+
+def load_menus_by_meal():
+    """Menus served at each meal, taken from the training data (menus_by_meal.json)."""
+    base = Path(__file__).resolve().parent
+    candidates = [
+        os.getenv("MENUS_PATH"),
+        base / "model" / "menus_by_meal.json",
+        base.parent / "model" / "menus_by_meal.json",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            try:
+                with open(candidate, encoding="utf-8") as f:
+                    data = json.load(f)
+                return {meal: [str(x) for x in data.get(meal, [])] for meal in MEAL_TYPES}
+            except Exception as e:
+                print(f"Could not read menus from {candidate}: {e}")
+                return {}
+    print("Warning: menus_by_meal.json not found, menus will not be filtered by meal")
+    return {}
+
+
+MENUS_BY_MEAL = load_menus_by_meal()
+ALL_MENUS = sorted(set(KNOWN_MENUS) | {m for items in MENUS_BY_MEAL.values() for m in items})
+ALL_MENU_LOOKUP = {name.lower(): name for name in ALL_MENUS}
+
+# ---- Enrollment settings ----
+# The model has no student-count input, so predictions are scaled by
+# (enrolled students / TRAINING_STUDENTS). TRAINING_STUDENTS is an approximate
+# baseline; override it with an environment variable on Render.
+try:
+    TRAINING_STUDENTS = int(os.getenv("TRAINING_STUDENTS", "742"))
+    if TRAINING_STUDENTS < 1:
+        raise ValueError
+except ValueError:
+    TRAINING_STUDENTS = 742
+
+DEFAULT_ENROLLED_STUDENTS = 742
+settings_col = db["settings"]
+
+
+def get_enrolled_students():
+    """Enrollment saved from the website (kept in MongoDB until changed)."""
+    try:
+        doc = settings_col.find_one({"_id": "enrollment"})
+        if doc and doc.get("enrolled_students"):
+            return int(doc["enrolled_students"])
+    except Exception as e:
+        print(f"Could not read enrollment setting: {e}")
+    return DEFAULT_ENROLLED_STUDENTS
 
 
 @app.route("/")
@@ -99,7 +150,7 @@ def summary():
     )
 
     return jsonify({
-        "expected_students": 742,
+        "expected_students": get_enrolled_students(),
         "students_served": students_served,
         "food_prepared_kg": food_prepared_kg,
         "food_consumed_kg": food_consumed_kg,
@@ -135,6 +186,9 @@ def add_meal():
 
     if not menu:
         return jsonify({"error": "Menu is required"}), 400
+
+    # Use the exact spelling from the training data when the menu is known
+    menu = ALL_MENU_LOOKUP.get(menu.lower(), menu)
 
     try:
         students_served = int(data.get("students_served"))
@@ -197,7 +251,44 @@ def get_meals():
 
 @app.route("/api/menus")
 def get_menus():
-    return jsonify({"menus": KNOWN_MENUS})
+    return jsonify({"menus": ALL_MENUS, "by_meal": MENUS_BY_MEAL})
+
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    return jsonify({
+        "enrolled_students": get_enrolled_students(),
+        "training_students": TRAINING_STUDENTS
+    })
+
+
+@app.route("/api/settings", methods=["POST"])
+def update_settings():
+    data = request.get_json(silent=True) or {}
+
+    try:
+        enrolled_students = int(data.get("enrolled_students"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Enrolled students must be a whole number"}), 400
+
+    if enrolled_students < 1 or enrolled_students > 100000:
+        return jsonify({
+            "error": "Enrolled students must be between 1 and 100000"
+        }), 400
+
+    settings_col.update_one(
+        {"_id": "enrollment"},
+        {"$set": {
+            "enrolled_students": enrolled_students,
+            "updated_at": datetime.now()
+        }},
+        upsert=True
+    )
+
+    return jsonify({
+        "enrolled_students": enrolled_students,
+        "training_students": TRAINING_STUDENTS
+    })
 
 
 @app.route("/api/predict", methods=["POST"])
@@ -220,12 +311,14 @@ def predict():
     if not menu:
         return jsonify({"error": "Menu is required"}), 400
 
-    # Match the menu to a name the model knows (ignores case and spacing)
-    if MENU_LOOKUP:
-        known = MENU_LOOKUP.get(menu.lower())
+    # The menu must be one served at this meal (ignores case and spacing)
+    valid_menus = MENUS_BY_MEAL.get(meal_type) or ALL_MENUS
+    if valid_menus:
+        lookup = {name.lower(): name for name in valid_menus}
+        known = lookup.get(menu.lower())
         if known is None:
             return jsonify({
-                "error": f"The model doesn't know the menu '{menu}'. Please pick one from the list."
+                "error": f"'{menu}' is not a known {meal_type} menu. Please pick one from the list."
             }), 400
         menu = known
 
@@ -243,11 +336,19 @@ def predict():
     except Exception as e:
         return jsonify({"error": f"Prediction failed: {e}"}), 500
 
+    # Scale from the enrollment the model assumes to the current enrollment
+    enrolled_students = get_enrolled_students()
+    scale_factor = enrolled_students / TRAINING_STUDENTS
+
     return jsonify({
         "day_of_week": day_of_week,
         "meal_type": meal_type,
         "menu": menu,
-        "predicted_kg": round(predicted_kg, 1)
+        "model_kg": round(predicted_kg, 1),
+        "predicted_kg": round(predicted_kg * scale_factor, 1),
+        "scale_factor": round(scale_factor, 3),
+        "enrolled_students": enrolled_students,
+        "training_students": TRAINING_STUDENTS
     })
 
 
