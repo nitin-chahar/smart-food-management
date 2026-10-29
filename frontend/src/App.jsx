@@ -62,6 +62,7 @@ function App() {
   })
   const [enrolledInput, setEnrolledInput] = useState('')
   const [enrollMessage, setEnrollMessage] = useState('')
+  const [showEnroll, setShowEnroll] = useState(false)
   const [prediction, setPrediction] = useState(null)
   const [predictError, setPredictError] = useState('')
   const [predicting, setPredicting] = useState(false)
@@ -243,6 +244,27 @@ function App() {
     loadSettings()
   }, [])
 
+  const openEnroll = () => {
+    setEnrolledInput(String(settings.enrolled_students ?? ''))
+    setEnrollMessage('')
+    setShowEnroll(true)
+  }
+
+  const closeEnroll = () => setShowEnroll(false)
+
+  useEffect(() => {
+    if (!showEnroll) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setShowEnroll(false)
+    }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [showEnroll])
+
   const saveEnrollment = async (e) => {
     e.preventDefault()
     setEnrollMessage('')
@@ -263,7 +285,7 @@ function App() {
       setSettings(data)
       setEnrolledInput(String(data.enrolled_students))
       setPrediction(null)
-      setEnrollMessage('Enrollment updated.')
+      setShowEnroll(false)
       loadSummary()
     } catch (error) {
       setEnrollMessage(error.message || 'Could not connect to backend')
@@ -302,7 +324,6 @@ function App() {
   }
 
   // Presentation only: picks the message colour
-  const enrollOk = enrollMessage === 'Enrollment updated.'
   const messageIsSuccess = message === 'Meal saved successfully!'
 
   return (
@@ -339,6 +360,31 @@ function App() {
         </a>
 
         <div className="nav-right">
+          <button
+            type="button"
+            className="enroll-btn"
+            onClick={openEnroll}
+            title="Change enrolled students"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="9" cy="8" r="3.5" />
+              <path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+              <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.4c1.9.7 3 2.5 3 5.6" />
+            </svg>
+            <span>
+              Enrolled: <strong>{fmt(settings.enrolled_students)}</strong>
+            </span>
+          </button>
           <span className="status">Admin Dashboard</span>
           <button
             type="button"
@@ -449,35 +495,6 @@ function App() {
               </article>
             </div>
           )}
-
-          <form className="enroll" onSubmit={saveEnrollment}>
-            <label>
-              Enrolled students
-              <input
-                type="number"
-                min="1"
-                step="1"
-                required
-                value={enrolledInput}
-                onChange={(e) => setEnrolledInput(e.target.value)}
-              />
-            </label>
-            <button type="submit" className="btn">
-              Update
-            </button>
-            {enrollMessage && (
-              <p
-                className={enrollOk ? 'message message-ok' : 'message message-error'}
-                role="status"
-              >
-                {enrollMessage}
-              </p>
-            )}
-            <p className="enroll-note">
-              Saved until you change it. Predictions are scaled from the
-              model&apos;s baseline of {fmt(settings.training_students)} students.
-            </p>
-          </form>
         </section>
 
         {/* ---------- Prediction ---------- */}
@@ -770,7 +787,7 @@ function App() {
                       <td>{fmt(meal.waste_percent)}</td>
                       <td>
                         {meal.created_at
-                          ? new Date(meal.created_at).toLocaleString()
+                          ? new Date(meal.created_at).toLocaleDateString()
                           : 'N/A'}
                       </td>
                     </tr>
@@ -785,6 +802,62 @@ function App() {
           </div>
         </section>
       </main>
+
+      {showEnroll && (
+        <div className="modal-backdrop" onClick={closeEnroll}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="enroll-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label="Close"
+              onClick={closeEnroll}
+            >
+              ×
+            </button>
+            <h2 id="enroll-title">Enrolled Students</h2>
+            <p className="modal-sub">
+              Saved until you change it. Predictions are scaled from the
+              model&apos;s baseline of {fmt(settings.training_students)} students.
+            </p>
+
+            <form onSubmit={saveEnrollment}>
+              <label>
+                Number of students
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  autoFocus
+                  value={enrolledInput}
+                  onChange={(e) => setEnrolledInput(e.target.value)}
+                />
+              </label>
+
+              {enrollMessage && (
+                <p className="message message-error" role="status">
+                  {enrollMessage}
+                </p>
+              )}
+
+              <div className="modal-actions">
+                <button type="submit" className="btn">
+                  Update
+                </button>
+                <button type="button" className="btn-ghost" onClick={closeEnroll}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
