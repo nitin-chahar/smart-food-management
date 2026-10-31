@@ -1,0 +1,8 @@
+Model,MAE_kg,R2,Accuracy_%
+Gradient_Boosting,23.391,0.894,92.55
+Ridge,23.601,0.892,92.49
+Lasso,23.605,0.892,92.49
+Linear_Regression,23.605,0.892,92.49
+Random_Forest,23.689,0.891,92.46
+SVR,24.05,0.888,92.34
+KNN,24.88,0.877,92.08
