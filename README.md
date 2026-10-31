@@ -22,12 +22,18 @@ SmartMess is a web application for managing food demand and waste in college mes
 
 ```text
 smart-food-management/
-├── backend/
-│   └── app.py
-├── frontend/
-│   ├── src/
-│   └── package.json
-├── .gitignore
+├── backend/               Flask API
+│   ├── model/             Deployed model and its documentation
+│   ├── app.py
+│   └── requirements.txt
+├── frontend/              React dashboard (Vite)
+│   ├── public/
+│   └── src/
+├── ml/                    Model training
+│   ├── data/              Training datasets
+│   ├── models/            Trained models and comparison results
+│   ├── notebooks/         Training notebook
+│   └── requirements.txt
 └── README.md
 ```
 
