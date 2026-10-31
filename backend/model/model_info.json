@@ -1,0 +1,31 @@
+{
+  "model_name": "KNN",
+  "file": "model.joblib",
+  "target": "amount_of_food_required_kg",
+  "features": [
+    "day_of_week",
+    "meal_type",
+    "menu",
+    "is_weekend"
+  ],
+  "metrics_on_test_set": {
+    "mae_kg": 24.88,
+    "r2": 0.877,
+    "accuracy_percent": 92.08
+  },
+  "training": {
+    "dataset": "mess_food_dataset.csv",
+    "rows": 10000,
+    "train_rows": 8000,
+    "test_rows": 2000,
+    "split": "80/20, random_state=42"
+  },
+  "trained_on": "2026-10-31",
+  "library_versions": {
+    "python": "3.14.6",
+    "scikit-learn": "1.9.1",
+    "pandas": "3.1.0",
+    "numpy": "2.5.4",
+    "joblib": "1.6.0"
+  }
+}

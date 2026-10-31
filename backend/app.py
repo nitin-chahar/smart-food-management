@@ -27,12 +27,14 @@ WEEKEND_DAYS = {"Saturday", "Sunday"}
 
 
 def load_model():
-    """Find and load the KNN pipeline. Returns None if it can't be loaded."""
+    """Find and load the deployed model pipeline. Returns None if it can't be loaded."""
     base = Path(__file__).resolve().parent
+    # The deployed model always has this fixed name, so swapping in a different
+    # model never needs a code change (see backend/model/README.md).
     candidates = [
         os.getenv("MODEL_PATH"),
-        base / "model" / "KNN_new.joblib",
-        base.parent / "model" / "KNN_new.joblib",
+        base / "model" / "model.joblib",
+        base.parent / "model" / "model.joblib",
     ]
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
@@ -41,7 +43,7 @@ def load_model():
             except Exception as e:
                 print(f"Could not load model from {candidate}: {e}")
                 return None
-    print("Warning: KNN_new.joblib not found, /api/predict is disabled")
+    print("Warning: model.joblib not found, /api/predict is disabled")
     return None
 
 
